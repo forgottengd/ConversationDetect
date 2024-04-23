@@ -1,6 +1,7 @@
+import os
 import streamlit as st
-from openai import OpenAI
 import base64
+from openai import OpenAI
 
 
 def main():
@@ -13,7 +14,7 @@ def main():
 
 
 def on_click(file):
-    client = OpenAI()
+    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
     base64_image = base64.b64encode(file.getvalue()).decode('utf-8')
     print(base64_image)
     with st.spinner("Detecting image..."):
