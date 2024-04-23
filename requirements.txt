@@ -1,4 +1,2 @@
 streamlit==1.33.0
 openai==1.23.2
-transformers==4.40.0
-torch==2.2.2
