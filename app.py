@@ -16,27 +16,29 @@ def main():
 def on_click(file):
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
     base64_image = base64.b64encode(file.getvalue()).decode('utf-8')
-    print(base64_image)
     with st.spinner("Detecting image..."):
-        response = client.chat.completions.create(
-            model="gpt-4-turbo",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text",
-                         "text": "Analyze image. If it's conversation, try to understand conversation and describe it, otherwise shortly tell what you see on image"},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
-                            }
-                        },
-                    ],
-                }
-            ],
-            max_tokens=300,
-        )
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4-turbo",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text",
+                             "text": "Analyze image. If it's conversation, try to understand conversation and describe it, otherwise shortly tell what you see on image"},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                }
+                            },
+                        ],
+                    }
+                ],
+                max_tokens=300,
+            )
+        except Exception as e:
+            st.error(f"Error: {e}")
 
     st.text_area(label="Result", value=response.choices[0], height=300)
 
