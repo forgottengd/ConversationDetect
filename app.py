@@ -20,7 +20,7 @@ def send_ocr_request(iam_token, encoded_image):
     folder_id = "b1g79vtsge6ggong8ioa"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {iam_token}",
+        "Authorization": f"Api-Key {iam_token}",
         "x-folder-id": folder_id,
         "x-data-logging-enabled": "true"
     }
