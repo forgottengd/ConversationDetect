@@ -1,10 +1,12 @@
 import base64
+import os
 import requests
 import streamlit as st
 from openai import OpenAI
 
 
 client = OpenAI()
+OCR_API = os.environ['OCR_API']
 
 
 def encode_file_to_base64(file):
@@ -58,13 +60,11 @@ def summary_prompt(ocr_text, blocks) -> str:
 
 
 def on_click(file, temp):
-    IAM_TOKEN = 't1.9euelZqMnoqJzo6Jk8qbk5GXmsuOy-3rnpWaz5CUmJaelpKUk8nHjY2Ujonl8_cIL1xO-e9laE83_N3z90hdWU7572VoTzf8zef1656VmpeLms-Ri5OexpvOjsyZjYqU7_zF656VmpeLms-Ri5OexpvOjsyZjYqU.OeOAbd345tFFCLOSg2uj7hgBbspIHLR-j8BVVv5JfvnBtWWgkd1bzBe-GkJACxzzB2fzP_dJ7Qa1jW8vzaTiBA'
-
     full_text = ""
     with st.spinner("Detecting image..."):
         try:
             image = encode_file_to_base64(file.getvalue())
-            ocr_response = send_ocr_request(IAM_TOKEN, image)
+            ocr_response = send_ocr_request(OCR_API, image)
             # parse OCR result
             if 'result' in ocr_response:
                 if 'textAnnotation' in ocr_response['result']:
