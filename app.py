@@ -114,6 +114,12 @@ def process_ocr(ocr_text, temp):
                             current_sentence["x1"] = max(int(block['boundingBox']['vertices'][0]['x']), current_sentence["x1"])
                             current_sentence["x2"] = max(int(block['boundingBox']['vertices'][2]['x']), current_sentence["x2"])
                             current_sentence["y2"] = max(int(block['boundingBox']['vertices'][2]['y']), current_sentence["y2"])
+                            # проверяем на сторону, возможно предыдущий блок был слишком близко расположен к процентилю
+                            # границы и неправильно записан в response. проверяем по block_percentile / 2
+                            # если ближе к правой границе чем к левой то меняем сторону
+                            if (current_sentence["x2"] >= result_dict["image_width"] * (1 - block_percentile / 2) and
+                                    current_sentence["x1"] >= result_dict["image_width"] * (block_percentile / 2)):
+                                current_sentence['side'] = "user"
                         else:
                             result_dict["sentences"].append(current_sentence.copy())
                             current_sentence["text"] = ""
@@ -124,9 +130,10 @@ def process_ocr(ocr_text, temp):
                             current_sentence['side'] = "user"
                     for line in block["lines"]:
                         current_sentence["text"] += f"{line['text']} "
-                # если блок не входит в зону краев
+                # если блок не входит в процентную зону краев картинки
                 else:
-                    # TODO: возможно если блок в центре и не относится к какой-то стороне, его можно соотнести потом - проверить
+                    # TODO: возможно если блок в центре и не относится к какой-то стороне, его можно соотнести потом -
+                    #  проверить. Также если блок в центре, и не находит подтверждение к сторонам, статус блока? добавлять?
                     # если блок расположен близко к предыдущему, считаем что он ему принадлежит
                     if previous_block_too_close:
                         # расширяем границы текущего блока
@@ -158,7 +165,7 @@ def process_dict(ocr_dict: Dict):
 
 def main():
     """ Создает объекты streamlit-сервиса """
-    uploader = st.file_uploader("Choose image for detection", type=['png', 'jpg', 'jpeg'])
+    uploader = st.file_uploader("Choose image for detection", type=['png', 'jpg', 'jpeg', 'webp'])
     if uploader:
         slider_value = st.slider(
             'Threshold',
@@ -180,7 +187,7 @@ def on_click(file, temp):
             image = encode_file_to_base64(file.getvalue())
             ocr_response = send_ocr_request(OCR_API, image)
             # parse OCR result
-            #ocr_response = res.res8
+            #ocr_response = res.res4
             full_text, result_dict = process_ocr(ocr_response, temp)
             metrics = process_dict(result_dict)
             confidence = (metrics[0] * 0.15 + metrics[1] * 0.03 + metrics[2] * 0.03) * 2
