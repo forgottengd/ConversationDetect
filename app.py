@@ -5,6 +5,8 @@ import requests
 import streamlit as st
 import re
 #import res
+import time
+from utils import draw_rectangles
 
 
 OCR_API = os.environ['OCR_API']
@@ -66,7 +68,8 @@ def process_ocr(ocr_text, temp):
             }
             for block in text_annotation['blocks']:
                 # если в блоке одна строка со временем, считаем её за временную отметку сообщения
-                is_time_block = len(block['lines']) == 1 and timestamp_pattern.match(block['lines'][0]['text']) is not None
+                is_time_block = len(block['lines']) == 1 and timestamp_pattern.match(
+                    block['lines'][0]['text']) is not None
                 # смотрим насколько далеко был предыдущий блок (сравниваем нижнюю y-координату предыдущего
                 # блока с верхней y-координатой текущего)
                 # если блок расположен слишком близко, он может относиться
@@ -85,8 +88,10 @@ def process_ocr(ocr_text, temp):
                     else:
                         # если блок расположен близко к предыдущему, считаем что он ему принадлежит
                         if previous_block_too_close:
-                            current_sentence["x2"] = max(int(block['boundingBox']['vertices'][2]['x']), current_sentence["x2"])
-                            current_sentence["y2"] = max(int(block['boundingBox']['vertices'][2]['y']), current_sentence["y2"])
+                            current_sentence["x2"] = max(int(block['boundingBox']['vertices'][2]['x']),
+                                                         current_sentence["x2"])
+                            current_sentence["y2"] = max(int(block['boundingBox']['vertices'][2]['y']),
+                                                         current_sentence["y2"])
                         # если это новый блок, добавляем предыдущее сообщение и создаем новое
                         else:
                             result_dict["sentences"].append(current_sentence.copy())
@@ -99,7 +104,8 @@ def process_ocr(ocr_text, temp):
                     for line in block["lines"]:
                         current_sentence["text"] += f"{line['text']} "
                 # или если верхний правый угол блока находится справа, то предполагаем что это сообщение пользователя
-                elif int(block['boundingBox']['vertices'][3]['x']) > result_dict["image_width"] * (1 - block_percentile):
+                elif int(block['boundingBox']['vertices'][3]['x']) > result_dict["image_width"] * (
+                        1 - block_percentile):
                     # если текущее предложение отсутствует
                     if current_sentence["text"] == "":
                         current_sentence["x1"] = int(block['boundingBox']['vertices'][0]['x'])
@@ -110,10 +116,13 @@ def process_ocr(ocr_text, temp):
                     else:
                         # если блок расположен близко к предыдущему, считаем что он ему принадлежит
                         if previous_block_too_close:
-                            # расширяем х- и y-координаты
-                            current_sentence["x1"] = max(int(block['boundingBox']['vertices'][0]['x']), current_sentence["x1"])
-                            current_sentence["x2"] = max(int(block['boundingBox']['vertices'][2]['x']), current_sentence["x2"])
-                            current_sentence["y2"] = max(int(block['boundingBox']['vertices'][2]['y']), current_sentence["y2"])
+                            # расширяем х- и y-координаты влево, вправо и вниз
+                            current_sentence["x1"] = min(int(block['boundingBox']['vertices'][0]['x']),
+                                                         current_sentence["x1"])
+                            current_sentence["x2"] = max(int(block['boundingBox']['vertices'][2]['x']),
+                                                         current_sentence["x2"])
+                            current_sentence["y2"] = max(int(block['boundingBox']['vertices'][2]['y']),
+                                                         current_sentence["y2"])
                             # проверяем на сторону, возможно предыдущий блок был слишком близко расположен к процентилю
                             # границы и неправильно записан в response. проверяем по block_percentile / 2
                             # если ближе к правой границе чем к левой то меняем сторону
@@ -136,10 +145,13 @@ def process_ocr(ocr_text, temp):
                     #  проверить. Также если блок в центре, и не находит подтверждение к сторонам, статус блока? добавлять?
                     # если блок расположен близко к предыдущему, считаем что он ему принадлежит
                     if previous_block_too_close:
-                        # расширяем границы текущего блока
-                        current_sentence["x1"] = max(int(block['boundingBox']['vertices'][0]['x']), current_sentence["x1"])
-                        current_sentence["x2"] = max(int(block['boundingBox']['vertices'][2]['x']), current_sentence["x2"])
-                        current_sentence["y2"] = max(int(block['boundingBox']['vertices'][2]['y']), current_sentence["y2"])
+                        # расширяем границы текущего блока влево, вправо и вниз
+                        current_sentence["x1"] = min(int(block['boundingBox']['vertices'][0]['x']),
+                                                     current_sentence["x1"])
+                        current_sentence["x2"] = max(int(block['boundingBox']['vertices'][2]['x']),
+                                                     current_sentence["x2"])
+                        current_sentence["y2"] = max(int(block['boundingBox']['vertices'][2]['y']),
+                                                     current_sentence["y2"])
                         for line in block["lines"]:
                             current_sentence["text"] += f"{line['text']} "
             result_dict["sentences"].append(current_sentence)
@@ -165,39 +177,60 @@ def process_dict(ocr_dict: Dict):
 
 def main():
     """ Создает объекты streamlit-сервиса """
-    uploader = st.file_uploader("Choose image for detection", type=['png', 'jpg', 'jpeg', 'webp'])
+    uploader = st.file_uploader("Choose image for detection", type=['png', 'jpg', 'jpeg'])
+    slider_value = st.empty()
     if uploader:
-        slider_value = st.slider(
-            'Threshold',
-            min_value=0.0,
-            max_value=1.0,
-            step=0.1,
-            value=0.8
-        )
+        show_slider = st.checkbox("Настроить порог")
+        if show_slider:
+            slider_value = st.slider(
+                'Threshold',
+                min_value=0.0,
+                max_value=1.0,
+                step=0.1,
+                value=0.8
+            )
         detect_button = st.empty()
         if detect_button.button("Detect"):
             detect_button.empty()
-            on_click(uploader, slider_value)
+            temp = slider_value if isinstance(slider_value, float) else 0.8
+            on_click(uploader, temp)
 
 
 def on_click(file, temp):
     """ Вызывает обработку загруженного изображения и отображает результат """
     with st.spinner("Detecting image..."):
         try:
+            start_time = time.time()  # засекаем время
             image = encode_file_to_base64(file.getvalue())
             ocr_response = send_ocr_request(OCR_API, image)
             # parse OCR result
-            #ocr_response = res.res4
+            #ocr_response = res.res1
+            if 'error' in ocr_response:
+                raise Exception(ocr_response['error'])
             full_text, result_dict = process_ocr(ocr_response, temp)
             metrics = process_dict(result_dict)
-            confidence = (metrics[0] * 0.15 + metrics[1] * 0.03 + metrics[2] * 0.03) * 2
+            elapsed_time = time.time() - start_time  # узнаем сколько тратилось на обработку
+            if elapsed_time < 1:
+                time_spent = f"{elapsed_time * 1000:.2f} мс"
+            else:
+                time_spent = f"{elapsed_time:.2f} секунд"
+            confidence = min(metrics[0] * 0.3 + metrics[1] * 0.04 + metrics[2] * 0.08, 1.0)
+            print(f"2 стороны: {metrics[0]}, чередования сторон: {metrics[1]}, количество сообщений: {metrics[2]}")
             decision = "Переписка" if confidence >= temp else "Не переписка"
-            decision += f". Уверенность: {confidence}"
+            decision += f". Уверенность: {confidence}. Время выполнения: {time_spent}"
         except Exception as e:
             st.error(f"Error: {e}")
             st.stop()
 
-    st.text_area(label="Result", value=decision, height=200)
+    st.text_area(label="Result", value=decision, height=40)
+    col1, col2 = st.columns([1, 1], gap='medium')
+    with col1:
+        st.image(file, caption="Загруженное изображение")
+    with col2:
+        st.image(draw_rectangles(file,
+                                 ocr_response['result']['textAnnotation']['blocks'],
+                                 result_dict['sentences']),
+                 caption="Обработанное изображение", use_column_width=True)
 
 
 if __name__ == "__main__":
