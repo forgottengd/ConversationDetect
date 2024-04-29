@@ -224,7 +224,7 @@ def main():
         )
     if uploader:
         temp = slider_value if isinstance(slider_value, float) else 0.8
-        #on_click_yandex(uploader, temp)
+        # on_click_yandex(uploader, temp)
         on_upload(uploader, temp)
 
 
