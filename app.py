@@ -14,7 +14,7 @@ import cv2
 
 
 #OCR_API = os.environ['OCR_API']
-OCR_API = "AQVN3RpXagd_0fac0xB_b9l4idaUrS90gW23EA8f"
+OCR_API = ""
 folder_id = "b1g79vtsge6ggong8ioa"
 block_percentile = 0.19  # зона в которую должен входить блок, чтобы считать его за переписку
 
