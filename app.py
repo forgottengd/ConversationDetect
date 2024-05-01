@@ -6,13 +6,11 @@ import numpy as np
 import requests
 import streamlit as st
 import re
-
-import tesserocr
-from PIL import Image
 import time
 from utils import draw_rectangles_yandex, elapsed_time, get_coords_yandex, draw_rectangles
 import pytesseract
 import cv2
+
 
 #OCR_API = os.environ['OCR_API']
 OCR_API = ""
@@ -243,7 +241,7 @@ def on_upload(file, temp: float):
             print(f"parse_image обработан за {elapsed_time(start_time, time.time())}")
             processed_result = process_image(ocr_result, image_width, image_height)
             print(f"process_image обработан за {elapsed_time(start_time, time.time())}")
-            #print(processed_result['text_blocks'])
+            print(processed_result['text_blocks'])
             metrics = parse_ocr(processed_result)
             confidence = round(min(metrics[0] * 0.3 + metrics[1] * 0.05 + processed_result["blocks_overall"] * 0.07,
                                    1.0), 2)
