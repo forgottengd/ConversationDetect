@@ -6,12 +6,13 @@ import numpy as np
 import requests
 import streamlit as st
 import re
+
+import tesserocr
 from PIL import Image
 import time
 from utils import draw_rectangles_yandex, elapsed_time, get_coords_yandex, draw_rectangles
 import pytesseract
 import cv2
-
 
 #OCR_API = os.environ['OCR_API']
 OCR_API = ""
@@ -72,13 +73,15 @@ def process_ocr_yandex(ocr_text, temp) -> Tuple[str, dict]:
             }
             for block in text_annotation['blocks']:
                 # если в блоке одна строка со временем, считаем её за временную отметку сообщения
-                is_time_block = len(block['lines']) == 1 and timestamp_pattern.match(block['lines'][0]['text']) is not None
+                is_time_block = len(block['lines']) == 1 and timestamp_pattern.match(
+                    block['lines'][0]['text']) is not None
                 # смотрим насколько далеко был предыдущий блок (сравниваем нижнюю y-координату предыдущего
                 # блока с верхней y-координатой текущего)
                 # если блок расположен слишком близко, он может относиться
                 # к предыдущей строке (или быть временной отметкой)
                 current_y = int(block['boundingBox']['vertices'][0]['y'])  # текущая верхняя y-координата
-                previous_block_too_close = current_y < current_sentence["coords"][3] + result_dict["image_height"] * 0.02
+                previous_block_too_close = current_y < current_sentence["coords"][3] + result_dict[
+                    "image_height"] * 0.02
                 # если верхний левый угол блока находится слева, то предполагаем что это ответ на сообщение
                 if int(block['boundingBox']['vertices'][0]['x']) < result_dict["image_width"] * block_percentile:
                     # если текущее предложение отсутствует
@@ -123,8 +126,10 @@ def process_ocr_yandex(ocr_text, temp) -> Tuple[str, dict]:
                             # проверяем на сторону, возможно предыдущий блок был слишком близко расположен к процентилю
                             # границы и неправильно записан в response. проверяем по block_percentile / 2
                             # если ближе к правой границе чем к левой то меняем сторону
-                            if (current_sentence["coords"][2] >= result_dict["image_width"] * (1 - block_percentile / 2) and
-                                    current_sentence["coords"][0] >= result_dict["image_width"] * (block_percentile / 2)):
+                            if (current_sentence["coords"][2] >= result_dict["image_width"] * (
+                                    1 - block_percentile / 2) and
+                                    current_sentence["coords"][0] >= result_dict["image_width"] * (
+                                            block_percentile / 2)):
                                 current_sentence['side'] = "user"
                         else:
                             result_dict["sentences"].append(current_sentence.copy())
@@ -234,15 +239,18 @@ def on_upload(file, temp: float):
         try:
             start_time = time.time()  # засекаем время
             # get OCR result
-            ocr_result = process_image(file)
-            print(ocr_result['full_text'])
+            ocr_result, image_width, image_height = parse_image(file)
+            print(f"parse_image обработан за {elapsed_time(start_time, time.time())}")
+            processed_result = process_image(ocr_result, image_width, image_height)
             print(f"process_image обработан за {elapsed_time(start_time, time.time())}")
-            metrics = parse_ocr(ocr_result, temp)
-            confidence = round(min(metrics[0] * 0.3 + metrics[1] * 0.04 + metrics[2] * 0.06, 1.0), 2)
-            print(f"2 стороны: {metrics[0]}, чередования сторон: {metrics[1]}, количество сообщений: {metrics[2]}")
+            #print(processed_result['text_blocks'])
+            metrics = parse_ocr(processed_result)
+            confidence = round(min(metrics[0] * 0.3 + metrics[1] * 0.05 + processed_result["blocks_overall"] * 0.07,
+                                   1.0), 2)
             decision = "Переписка" if confidence >= temp else "Не переписка"
             decision += f". Уверенность: {confidence}. Время выполнения: {elapsed_time(start_time, time.time())}"
         except Exception as e:
+            print(f"Error: {e}")
             st.error(f"Error: {e}")
             st.stop()
 
@@ -251,40 +259,21 @@ def on_upload(file, temp: float):
     with col1:
         st.image(file, caption="Загруженное изображение")
     with col2:
-        st.image(draw_rectangles(file, ocr_result['text_blocks']),
+        st.image(draw_rectangles(file, ocr_result, processed_result['text_blocks']),
                  caption="Обработанное изображение", use_column_width=True)
 
 
-def process_image(file) -> Dict:
+def process_image(details, image_width, image_height) -> Dict:
     text_blocks = []  # Список для хранения информации о текстовых блоках
-    # Загрузка изображения
-    #image = cv2.imread(file)
-
-    # Читаем файл как массив байт
-    file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
-    image = cv2.imdecode(file_bytes, 1)
-
-    # Перевод в серый для улучшения распознавания
-    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-    #pytesseract.pytesseract.tesseract_cmd = r'/usr/bin/tesseract'  # Пример для Linux
-    #pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'  # Пример для Windows
-    custom_config = r'--oem 3 --psm 1'
-    # Используем Tesseract для распознавания текста и получения детальной информации о расположении текста
-    details = pytesseract.image_to_data(gray_image, lang='eng+rus', config=custom_config,
-                                        output_type=pytesseract.Output.DICT)
-
-    full_text = ""
-    image_width = image.shape[1]
-    image_height = image.shape[0]
-    # храним данные текущего сообщения
-    current_message = {
+    reduce_factor = 1.3  # коэффициент для уменьшения границ для обнаружения широких блоков
+    full_text = ""  # тут храним весь найденный текст (для чего? кек)
+    current_message = {  # храним данные текущего сообщения
         "text": "",
         "coords": [0, 0, 0, -100],  # x1, y1, x2, y2
         "side": ""  # "response", "user" or "middle"
     }
     for i in range(len(details['text'])):
-        if details['text'][i] != '':
+        if details['text'][i].strip() != '':
             full_text += f"{details['text'][i]} "
             # смотрим насколько далеко был предыдущий блок (сравниваем нижнюю y-координату предыдущего
             # блока с верхней y-координатой текущего), если блок расположен слишком близко, он может относиться
@@ -302,13 +291,20 @@ def process_image(file) -> Dict:
                 else:
                     # если блок расположен близко к предыдущему, считаем что он ему принадлежит
                     if previous_block_too_close:
+                        current_message["coords"][0] = min(details['left'][i],
+                                                           current_message["coords"][0])
                         current_message["coords"][2] = max(details['left'][i] + details['width'][i],
                                                            current_message["coords"][2])
                         current_message["coords"][3] = max(details['top'][i] + details['height'][i],
                                                            current_message["coords"][3])
+                        if (current_message["coords"][2] <= image_width * (1 - block_percentile) and
+                                current_message["coords"][0] <= image_width * block_percentile):
+                            current_message['side'] = "response"
                     # если это новый блок, добавляем предыдущее сообщение и создаем новое
                     else:
-                        text_blocks.append(current_message.copy())
+                        if not (current_message["coords"][2] >= image_width * (1 - block_percentile / reduce_factor) and
+                                current_message["coords"][0] <= image_width * (block_percentile / reduce_factor)):
+                            text_blocks.append(current_message.copy())
                         current_message["text"] = ""
                         current_message["coords"] = [details['left'][i], details['top'][i],
                                                      details['left'][i] + details['width'][i],
@@ -336,13 +332,15 @@ def process_image(file) -> Dict:
                         current_message["coords"][3] = max(details['top'][i] + details['height'][i],
                                                            current_message["coords"][3])
                         # проверяем на сторону, возможно предыдущий блок был слишком близко расположен к процентилю
-                        # границы и неправильно записан в response. проверяем по block_percentile / 2
-                        # если ближе к правой границе чем к левой то меняем сторону
+                        # границы и неправильно записан в response. проверяем по block_percentile, если ближе к правой
+                        # границе чем к левой то меняем сторону. если сторона=response, то не сменится на user
                         if (current_message["coords"][2] >= image_width * (1 - block_percentile) and
-                                current_message["coords"][0] >= image_width * (block_percentile)):
+                                current_message["coords"][0] >= image_width * block_percentile):
                             current_message['side'] = "user"
                     else:
-                        text_blocks.append(current_message.copy())
+                        if not (current_message["coords"][2] >= image_width * (1 - block_percentile / reduce_factor) and
+                                current_message["coords"][0] <= image_width * (block_percentile / reduce_factor)):
+                            text_blocks.append(current_message.copy())
                         current_message["text"] = ""
                         current_message["coords"] = [details['left'][i], details['top'][i],
                                                      details['left'][i] + details['width'][i],
@@ -360,18 +358,22 @@ def process_image(file) -> Dict:
                                                        current_message["coords"][2])
                     current_message["coords"][3] = max(details['top'][i] + details['height'][i],
                                                        current_message["coords"][3])
-                    current_message["text"] += f"{details['text'][i]} "
                 else:
                     # если предыдущий блок не центральный, а относится к какой-то части, то добавляем его
-                    text_blocks.append(current_message.copy())
+                    if (current_message["text"] != "" and not
+                       (current_message["coords"][2] >= image_width * (1 - block_percentile / reduce_factor) and
+                       current_message["coords"][0] <= image_width * (block_percentile / reduce_factor))):
+                        text_blocks.append(current_message.copy())
                     current_message["text"] = ""
                     current_message["coords"] = [details['left'][i], details['top'][i],
                                                  details['left'][i] + details['width'][i],
                                                  details['top'][i] + details['height'][i]]
                     current_message['side'] = "middle"
-                    current_message["text"] += f"{details['text'][i]} "
+                current_message["text"] += f"{details['text'][i]} "
 
-    if current_message["text"] != "":
+    if (current_message["text"] != "" and not
+       (current_message["coords"][2] >= image_width * (1 - block_percentile / reduce_factor) and
+       current_message["coords"][0] <= image_width * (block_percentile / reduce_factor))):
         text_blocks.append(current_message)
     result_dict = {
         "blocks_overall": len(text_blocks),
@@ -381,9 +383,9 @@ def process_image(file) -> Dict:
     return result_dict
 
 
-def parse_ocr(ocr_result, temp):
+def parse_ocr(processed_result):
     def check_alternation(messages):
-        if len(messages) < 2:
+        if len(messages["text_blocks"]) < 2:
             return False, 0
         last_side = messages["text_blocks"][0]["side"]
         swap = 0
@@ -393,11 +395,25 @@ def parse_ocr(ocr_result, temp):
                 swap += 1
         return swap > 1, swap
 
-    alteration, swap_count = check_alternation(ocr_result)
-    messages_count = ocr_result["blocks_overall"]
-    return alteration, swap_count, messages_count
+    alteration, swap_count = check_alternation(processed_result)
+    return alteration, swap_count
+
+
+def parse_image(file):
+    # Загрузка изображения
+    #image = cv2.imread(file)
+    #pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'  # Пример для Windows
+    # Читаем файл как массив байт
+    file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
+    image = cv2.imdecode(file_bytes, 1)
+    # Перевод в серый для улучшения распознавания
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # Используем Tesseract для распознавания текста и получения детальной информации о расположении текста
+    details = pytesseract.image_to_data(gray_image, lang='eng+rus', config=r'--oem 3 --psm 4',
+                                        output_type=pytesseract.Output.DICT)
+    return details, image.shape[1], image.shape[0]
 
 
 if __name__ == "__main__":
-    #on_upload("C:\\Users\\DragonsHome\\Desktop\\test\\2.jpg", 0.8)
+    #on_upload("C:\\Users\\DragonsHome\\Desktop\\test\\9.jpg", 0.8)
     main()

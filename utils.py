@@ -78,12 +78,13 @@ def draw_rectangles_yandex(image_path, blocks, sentences):
     return buf
 
 
-def draw_rectangles(image_path, blocks):
+def draw_rectangles(image_path, ocr_result, text_blocks):
     """
     Отображает прямоугольники на изображении.
 
     :param image_path: путь к файлу изображения.
-    :param blocks: список прямоугольников, где каждый прямоугольник задается как (x, x2, y1, y2).
+    :param ocr_result: результат обработки OCR
+    :param text_blocks: список обработанных предложений, где каждый прямоугольник задается как (x1, x2, y1, y2).
     """
     # Загрузка изображения
     img = Image.open(image_path)
@@ -96,12 +97,20 @@ def draw_rectangles(image_path, blocks):
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
     ax.imshow(img_np)
 
-    # Добавление прямоугольников OCR
-    for sent in blocks:
+    # Добавление сырых прямоугольников OCR
+    for i in range(len(ocr_result['text'])):
+        if ocr_result['text'][i] != '':
+            rect = patches.Rectangle((ocr_result["left"][i], ocr_result["top"][i]),
+                                     ocr_result["width"][i], ocr_result["height"][i],
+                                     linewidth=0.7, edgecolor='r', facecolor='none')
+            ax.add_patch(rect)
+
+    # Добавление обработанных прямоугольников OCR
+    for sent in text_blocks:
         rect = patches.Rectangle((sent["coords"][0], sent["coords"][1]),
                                  sent["coords"][2] - sent["coords"][0],
                                  sent["coords"][3] - sent["coords"][1],
-                                 linewidth=1, edgecolor='r', facecolor='none')
+                                 linewidth=0.9, edgecolor='g', facecolor='none')
         ax.add_patch(rect)
 
     # Убираем оси и белые поля
