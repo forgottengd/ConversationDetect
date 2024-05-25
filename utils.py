@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from PIL import Image
 import numpy as np
-from typing import List, Tuple
+from typing import Tuple
 from io import BytesIO
 from skimage.color import rgb2gray
 from skimage.feature import canny

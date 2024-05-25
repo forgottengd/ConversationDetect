@@ -1,11 +1,7 @@
 from typing import List, Tuple, Dict
 import re
-
 import numpy as np
 import requests
-
-
-folder_id = "b1g79vtsge6ggong8ioa"
 
 
 def get_coords_yandex(block) -> List:

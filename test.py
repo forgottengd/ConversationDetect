@@ -1,6 +1,5 @@
 import os
 import pytest
-
 from image_processing import process_image
 
 
