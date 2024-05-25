@@ -15,7 +15,7 @@ def get_coords_yandex(block) -> List:
             int(block['boundingBox']['vertices'][2]['y'])])
 
 
-def send_ocr_request_yandex(iam_token, encoded_image) -> str:
+def send_ocr_request_yandex(iam_token, encoded_image, folder_id) -> str:
     """ Отправляет OCR запрос и возвращает результат в json формате. """
     headers = {
         "Content-Type": "application/json",
@@ -167,9 +167,9 @@ def process_dict_yandex(ocr_dict: Dict, bounding_boxes: List) -> int:
                 temp_conf = 1
                 break
 
-        if temp_conf == 0 and sent['side'] != 'middle':
-            temp_conf = 0.20
         if sent['side'] != 'middle':
+            if temp_conf == 0:
+                temp_conf = 0.20
             confidence.append(temp_conf)
 
     if len(confidence) == 0:

@@ -127,7 +127,7 @@ def draw_rectangles_tesseract(image_path, ocr_result, text_blocks) -> BytesIO:
     return buf
 
 
-def get_color_zones(file, ocr_responce, block_percentile, reduce_factor=1.7) -> Tuple:
+def get_color_zones(file, ocr_responce, block_percentile=0.19, reduce_factor=1.7) -> Tuple:
     image = Image.open(file)
     if image.mode == 'RGBA':
         image = image.convert('RGB')
