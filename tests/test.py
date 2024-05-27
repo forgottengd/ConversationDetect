@@ -1,6 +1,6 @@
 import os
 import pytest
-from image_processing import process_image
+from src.image_processing import process_image
 
 
 def get_image_files(directory):

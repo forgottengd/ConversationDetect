@@ -1,10 +1,10 @@
 import streamlit as st
 import time
-from image_processing import process_image, plot_results
-from tesseract import process_image_tesseract, parse_ocr_tesseract, parse_image_tesseract
-from utils import draw_rectangles_yandex, elapsed_time, draw_rectangles_tesseract, encode_file_to_base64, \
+from src.image_processing import process_image, plot_results
+from src.tesseract import process_image_tesseract, parse_ocr_tesseract, parse_image_tesseract
+from src.utils import draw_rectangles_yandex, elapsed_time, draw_rectangles_tesseract, encode_file_to_base64, \
     get_color_zones
-from yandex import send_ocr_request_yandex, process_ocr_yandex, process_dict_yandex
+from src.yandex import send_ocr_request_yandex, process_ocr_yandex, process_dict_yandex
 
 
 block_percentile = 0.18  # зона в которую должен входить блок, чтобы считать его за переписку
